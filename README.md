@@ -19,7 +19,7 @@ Currently, moving an AI model or a neural state from a server to an edge device 
 
 This latency makes real-time **Distributed Intelligence** and **Hive-Mind Learning** impossible.
 
-##The Solution: UMTP
+## The Solution: UMTP
 **UMTP** is a Layer-5 Application Protocol designed specifically for the streaming of N-dimensional arrays. It treats "The Matrix" as a first-class citizen of the network stack.
 
 It allows for **Zero-Copy Transmutation**, moving neural weights from a PyTorch training cluster directly to a C++ Edge Inference Engine without complex intermediate file storage.
