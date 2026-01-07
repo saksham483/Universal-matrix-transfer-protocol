@@ -25,8 +25,6 @@ This latency makes real-time **Distributed Intelligence** and **Hive-Mind Learni
 It allows for **Zero-Copy Transmutation**, moving neural weights from a PyTorch training cluster directly to a C++ Edge Inference Engine without complex intermediate file storage.
 
 ### Key Features
-*   **🧠 Topology-Aware Headers:** The protocol header defines the "shape" of the reality (Dimensions, Data Type, Strides) before the payload arrives.
-*   **📉 Native Sparsity Support (Smart Streaming):** Automatically detects sparse matrices (mostly zeros) and switches to Coordinate-List transmission, reducing bandwidth by up to 99%.
 *   **⚡ Framework Agnostic:** Send from PyTorch -> Receive in TensorFlow -> Visualize in Unity.
 *   **🛡️ Binary Efficiency:** No JSON overhead. Pure binary packing optimized for high-throughput GPU interconnects.
 
