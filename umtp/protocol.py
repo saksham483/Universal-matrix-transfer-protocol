@@ -6,7 +6,7 @@ import numpy as np
 class UMTPPacket:
     """
     Universal Matrix Transfer Protocol (UMTP) - Application Layer Serializer.
-    Version 3: Implements Pre-serialization Sparsity Heuristics.
+    Implements Pre-serialization Sparsity Heuristics.
     """
     def __init__(self, tensor_id, tensor, sparsity_threshold=0.25):
         self.tensor_id = tensor_id
