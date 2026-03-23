@@ -1,84 +1,65 @@
+# umtp_protocol.py
 import struct
 import json
 import numpy as np
-import io
-
-# UMTP CONSTANTS
-UMTP_MAGIC = b'UMTP' # The handshake signature
-VERSION = 1
-HEADER_FORMAT = "!4s I Q I"  # Magic(4s), Version(Int), ID(Long), MetaLength(Int)
-HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 
 class UMTPPacket:
-    def __init__(self, tensor_id=0, tensor=None):
+    """
+    Universal Matrix Transfer Protocol (UMTP) - Application Layer Serializer.
+    Version 3: Implements Pre-serialization Sparsity Heuristics.
+    """
+    def __init__(self, tensor_id, tensor, sparsity_threshold=0.25):
         self.tensor_id = tensor_id
         self.tensor = tensor
-        self.metadata = {}
-    
+        self.threshold = sparsity_threshold
+        self.VERSION = 3
+        self.MAGIC = b'UMTP'
+        
+        # Header Format: Magic(4s), Version(I), TensorID(Q), MetaLen(I), Flags(B), Padding(4x) = 25 Bytes
+        self.HEADER_FORMAT = "!4s I Q I B 4x"
+
     def serialize(self):
         """
-        Converts a NumPy tensor into a UMTP binary stream.
-        Structure: [HEADER] + [METADATA_JSON] + [RAW_BYTES]
+        Executes the 'Inspect, then Pack' heuristic.
+        Returns the fully constructed binary packet.
         """
         if self.tensor is None:
-            raise ValueError("No tensor data to serialize.")
+            raise ValueError("No tensor data provided.")
 
-        # 1. Extract Topology (Shape and Type)
-        tensor_bytes = self.tensor.tobytes()
-        self.metadata = {
-            "shape": self.tensor.shape,
-            "dtype": str(self.tensor.dtype),
-            "byte_order": "little", # Standardize on little-endian
-            "payload_size": len(tensor_bytes)
-        }
-        
-        # 2. Serialize Metadata
-        meta_bytes = json.dumps(self.metadata).encode('utf-8')
-        meta_length = len(meta_bytes)
+        # 1. Inspect: Calculate Sparsity
+        total_elements = self.tensor.size
+        non_zeros = np.count_nonzero(self.tensor)
+        sparsity = (total_elements - non_zeros) / total_elements
 
-        # 3. Pack Header (Big Endian standard for network)
-        # Magic | Version | Tensor ID | Metadata Length
-        header = struct.pack(HEADER_FORMAT, UMTP_MAGIC, VERSION, self.tensor_id, meta_length)
+        # 2. Prepare Metadata
+        meta_dict = {"shape": self.tensor.shape, "dtype": str(self.tensor.dtype)}
+        meta_bytes = json.dumps(meta_dict).encode('utf-8')
 
-        # 4. Return the full packet
-        return header + meta_bytes + tensor_bytes
+        # 3. Mode Selection & Payload Construction
+        if sparsity > self.threshold:
+            # SPARSE MODE (COO Representation)
+            flags = 0x01
+            indices = np.nonzero(self.tensor)
+            values = self.tensor[indices]
+            
+            # Pack indices as uint32 and values as native float
+            idx_bytes = np.vstack(indices).astype(np.uint32).tobytes()
+            val_bytes = values.astype(self.tensor.dtype).tobytes()
+            payload = idx_bytes + val_bytes
+        else:
+            # DENSE MODE (Raw Memory Buffer)
+            flags = 0x00
+            payload = self.tensor.tobytes()
 
-    @staticmethod
-    def read_from_socket(sock):
-        """
-        Reads a UMTP packet from a TCP socket stream and reconstructs the Tensor.
-        This handles the logic of 'rebuilding' the matrix on the other side.
-        """
-        # Helper to ensure we read exactly N bytes
-        def recvall(n):
-            data = b''
-            while len(data) < n:
-                packet = sock.recv(n - len(data))
-                if not packet: return None
-                data += packet
-            return data
+        # 4. Construct Header
+        header = struct.pack(
+            self.HEADER_FORMAT, 
+            self.MAGIC, 
+            self.VERSION, 
+            self.tensor_id, 
+            len(meta_bytes), 
+            flags
+        )
 
-        # 1. Read Fixed Header
-        raw_header = recvall(HEADER_SIZE)
-        if not raw_header: return None
-        
-        magic, ver, t_id, meta_len = struct.unpack(HEADER_FORMAT, raw_header)
-        
-        if magic != UMTP_MAGIC:
-            raise ValueError("Invalid Protocol: Not a UMTP packet")
-
-        # 2. Read Metadata
-        raw_meta = recvall(meta_len)
-        metadata = json.loads(raw_meta.decode('utf-8'))
-
-        # 3. Read Payload (The Heavy Matrix)
-        payload_size = metadata["payload_size"]
-        raw_payload = recvall(payload_size)
-
-        # 4. Reconstruct Reality (Bytes -> Tensor)
-        dtype = np.dtype(metadata["dtype"])
-        shape = tuple(metadata["shape"])
-        
-        reconstructed_tensor = np.frombuffer(raw_payload, dtype=dtype).reshape(shape)
-        
-        return t_id, reconstructed_tensor
+        # 5. Return Final Packet
+        return header + meta_bytes + payload
