@@ -36,3 +36,5 @@ It allows for **Zero-Copy Transmutation**, moving neural weights from a PyTorch 
 git clone https://github.com/your-username/universal-matrix-transfer-protocol.git
 cd universal-matrix-transfer-protocol
 pip install -r requirements.txt
+```
+Please contribute to it for making improvements to this protocol
